@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: Deploy Lambda from SAR with Athena setup and environment variables
+
+Parameters:
+  AthenaDatabase:
+    Type: String
+    Description: The name of the Athena database
+
+  AthenaTable:
+    Type: String
+    Description: The name of the Athena table
+
+  S3OutputBucket:
+    Type: String
+    Description: The S3 bucket for Athena query output
+
+  CreateNewS3Bucket:
+    Type: String
+    AllowedValues: ['Yes', 'No']
+    Description: Choose 'Yes' to create a new S3 bucket or 'No' to use an existing one
+
+  CloudTrailS3Bucket:
+    Type: String
+    Description: The S3 bucket where CloudTrail logs are stored.
+
+Resources:
+  AthenaDatabaseResource:
+    Type: AWS::Athena::Database
+    Properties:
+      DatabaseName: !Ref AthenaDatabase
+
+  AthenaTableResource:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database: !Ref AthenaDatabase
+      QueryString: !Sub >
+        CREATE EXTERNAL TABLE IF NOT EXISTS ${AthenaTable} (
+          eventVersion STRING,
+          userIdentity STRUCT<
+            type: STRING,
+            principalId: STRING,
+            arn: STRING,
+            accountId: STRING,
+            invokedBy: STRING,
+            accessKeyId: STRING,
+            userName: STRING,
+            sessionContext: STRUCT<
+              attributes: STRUCT<
+                mfaAuthenticated: STRING,
+                creationDate: STRING
+              >,
+              sessionIssuer: STRUCT<
+                type: STRING,
+                principalId: STRING,
+                arn: STRING,
+                accountId: STRING,
+                userName: STRING
+              >
+            >
+          >,
+          eventTime STRING,
+          eventSource STRING,
+          eventName STRING,
+          awsRegion STRING,
+          sourceIPAddress STRING,
+          userAgent STRING,
+          errorCode STRING,
+          errorMessage STRING,
+          requestParameters STRING,
+          responseElements STRING,
+          additionalEventData STRING,
+          requestId STRING,
+          eventId STRING,
+          readOnly BOOLEAN,
+          resources ARRAY<STRUCT<
+            ARN: STRING,
+            accountId: STRING,
+            type: STRING
+          >>,
+          eventType STRING,
+          apiVersion STRING,
+          recipientAccountId STRING,
+          serviceEventDetails STRING,
+          sharedEventID STRING,
+          vpcEndpointId STRING,
+          tlsDetails STRUCT<
+            tlsVersion: STRING,
+            cipherSuite: STRING,
+            clientProvidedHostHeader: STRING
+          >
+        )
+        PARTITIONED BY (year STRING, month STRING, day STRING)
+        ROW FORMAT SERDE 'com.amazon.emr.hive.serde.CloudTrailSerde'
+        STORED AS INPUTFORMAT 'com.amazon.emr.cloudtrail.CloudTrailInputFormat'
+        OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+        LOCATION 's3://path-to-your-cloudtrail-logs/'
+
+  ConditionalS3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Condition: CreateBucket
+    Properties:
+      BucketName: !Ref S3OutputBucket
+
+  MyLambdaFunction:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location:
+        ApplicationId: arn:aws:serverlessrepo:us-east-1:414773805239:applications/Sysdig-EventCount
+        SemanticVersion: 1.0.0
+      Parameters:
+        ATHENA_DATABASE: !Ref AthenaDatabase
+        ATHENA_TABLE: !Ref AthenaTable
+        S3_OUTPUT: !Ref S3OutputBucket
+        CLOUDTRAIL_S3_BUCKET: !Ref CloudTrailS3Bucket
+
+Conditions:
+  CreateBucket: !Equals [!Ref CreateNewS3Bucket, 'Yes']

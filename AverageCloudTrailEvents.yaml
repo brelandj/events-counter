@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: An AWS Serverless Application Model template for averaging CloudTrail events.
+
+Resources:
+  AverageCloudTrailEvents:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://sysdig-alliances/AverageCloudTrailEvents.zip
+      Description: Lambda function to calculate average number of CloudTrail events per month.
+      MemorySize: 128
+      Timeout: 10
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      EphemeralStorage:
+        Size: 512
+      EventInvokeConfig:
+        MaximumEventAgeInSeconds: 21600
+        MaximumRetryAttempts: 2
+      PackageType: Zip
+      Environment: 
+        Variables:
+          ATHENA_DATABASE: !Ref AthenaDatabase
+          ATHENA_TABLE: !Ref AthenaTable
+          S3_OUTPUT: !Ref S3OutputBucket
+          CLOUDTRAIL_S3_BUCKET: !Ref CloudTrailS3Bucket
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: 'arn:aws:logs:*:*:*'
+            - Effect: Allow
+              Action:
+                - athena:StartQueryExecution
+                - athena:GetQueryExecution
+                - athena:GetQueryResults
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: 'arn:aws:s3:::*/*'
+
+Parameters:
+  AthenaDatabase:
+    Type: String
+    Description: The name of the Athena database.
+
+  AthenaTable:
+    Type: String
+    Description: The name of the Athena table.
+
+  S3OutputBucket:
+    Type: String
+    Description: The S3 bucket for Athena query output.
+
+  CloudTrailS3Bucket:
+    Type: String
+    Description: The S3 bucket where CloudTrail logs are stored.
