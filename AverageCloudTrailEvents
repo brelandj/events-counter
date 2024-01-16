@@ -107,7 +107,7 @@ Resources:
     Properties:
       Location:
         ApplicationId: arn:aws:serverlessrepo:us-east-1:414773805239:applications/Sysdig-EventCount
-        SemanticVersion: 1.0.0
+        SemanticVersion: 1.0.1
       Parameters:
         ATHENA_DATABASE: !Ref AthenaDatabase
         ATHENA_TABLE: !Ref AthenaTable
